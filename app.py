@@ -51,6 +51,7 @@ if sys.argv[1:2] == ["statusline"]:
     sys.exit(cli.main(sys.argv[1:]))
 
 from busybar_cclimits import connect, limits, render
+from busybar_cclimits.samples import DEMO_STEPS, Sample
 from busybar_cclimits.config import USB_HOST, Config, find, load
 
 APP = "busybar-cclimits"
@@ -100,9 +101,9 @@ async def demo(config: Config, once: bool) -> int:
     try:
         await render.clear(bar, app)
         while not stop.is_set():
-            for five, week in cli.DEMO_STEPS:
+            for five, week in DEMO_STEPS:
                 now = time.time()
-                drawn = render.elements(connect.sample(now, five, week), now, config.display)
+                drawn = render.elements(Sample("", five, week=week).feed(now), now, config.display)
                 await render.send(bar, render.drawing(drawn, now + 10, app, priority))
                 if once:
                     return 0

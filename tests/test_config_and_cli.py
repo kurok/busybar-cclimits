@@ -108,3 +108,10 @@ def test_app_defaults_to_usb(tmp_path, monkeypatch):
 def test_example_config_is_the_defaults():
     example = load(Path(__file__).resolve().parents[1] / "config.example.toml")
     assert example == Config()
+
+
+def test_describe_a_refused_draw():
+    from busylib.exceptions import BusyBarAPIError
+
+    (line,) = cli.describe(BusyBarAPIError("Not drawn due to low priority", status_code=409))
+    assert "higher priority" in line
