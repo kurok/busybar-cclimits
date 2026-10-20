@@ -1,10 +1,13 @@
 """
-The drawing: one or two rows on the 72x16 front panel, each a label, a bar
+The drawing: one to three rows on the 72x16 front panel, each a label, a bar
 of how much of a limit is used, and beside it the time to its reset or the
 percentage.
 
     5H ████████░░░░░░░░ 1:42:10      the 5-hour window and a live countdown
     WK ███░░░░░░░░░░░░░     38%      the weekly window and how much is used
+
+One or two rows are 5 pixels tall in the small font; three are 4 pixels in
+the tiny font, which leaves a 2-pixel gap between them.
 
 Once a reset is under 10 hours away the time is the bar's own countdown
 element, which ticks on the device; further out it is text (21h, 3d4h)
@@ -19,6 +22,7 @@ is cleared, so the service clears first whenever the set of ids changes.
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from typing import Annotated, Any, Protocol
 
 from busylib import types
@@ -29,7 +33,7 @@ from .config import Colors, DisplayConfig, Row
 from .limits import Feed, Window, duration
 
 WIDTH = 72
-BAR_HEIGHT = 5
+HEIGHT = 16
 # Where the bar starts when there are labels: two small-font glyphs (W is 5
 # pixels wide) and a gap.
 BAR_X = 12
@@ -38,13 +42,35 @@ GAP = 1
 # countdown's "9:59:59" in its superscript font, or "100%" / "6d23h" in small.
 RIGHT_WIDTH = {"time": 28, "percent": 17, "none": 0}
 COUNTDOWN_UNDER = 10 * 3600
-# The rows' glyph tops. Small text anchored top_left at y lands on rows
-# y+2..y+6, and the countdown anchored at the bottom on y-9..y-5 (both
-# measured on firmware 1.2.4), so a row is 5 pixels from its top.
-ROW_TOPS = {1: (6,), 2: (2, 10)}
-SMALL_OFFSET = 2
-COUNTDOWN_OFFSET = 9
+# The countdown's 5-pixel digits land on rows y-9..y-5 of its bottom anchor
+# (measured on firmware 1.2.4); its font cannot be chosen.
+COUNTDOWN_DIGITS = 5
+COUNTDOWN_BASE = 5
 DRAW_PATH = "/api/display/draw"
+
+
+@dataclass(frozen=True)
+class Rows:
+    """Where n rows go: their top rows, the bar height and the font beside it."""
+
+    tops: tuple[int, ...]
+    height: int
+    font: str
+    # Text anchored top_left at y has its glyphs from row y + offset: small
+    # from y+2 (measured on firmware 1.2.4), tiny from y+1.
+    offset: int
+
+    def countdown_y(self, top: int) -> int:
+        """The countdown's anchor: digits from the row's top, kept on the panel."""
+        bottom = min(top + COUNTDOWN_DIGITS - 1, HEIGHT - 1)
+        return bottom + COUNTDOWN_BASE
+
+
+ROWS = {
+    1: Rows((6,), 5, "small", 2),
+    2: Rows((2, 10), 5, "small", 2),
+    3: Rows((0, 6, 12), 4, "tiny", 1),
+}
 
 Element = Annotated[
     types.TextElement | types.CountdownElement | types.RectangleElement,
@@ -101,19 +127,19 @@ def fill_width(used: float, width: int) -> int:
     return min(width - 1, max(1, round(used / 100 * width)))
 
 
-def _small(element_id: str, text: str, x: int, top: int, align: str, color: str) -> Any:
+def _text(element_id: str, text: str, x: int, top: int, align: str, color: str, rows: Rows) -> Any:
     return types.TextElement(
-        id=element_id, text=text, font="small", x=x, y=top - SMALL_OFFSET, align=align, color=color
+        id=element_id, text=text, font=rows.font, x=x, y=top - rows.offset, align=align, color=color
     )
 
 
-def _rect(element_id: str, x: int, top: int, width: int, color: str) -> Any:
+def _rect(element_id: str, x: int, top: int, width: int, color: str, rows: Rows) -> Any:
     return types.RectangleElement(
         id=element_id,
         x=x,
         y=top,
         width=width,
-        height=BAR_HEIGHT,
+        height=rows.height,
         fill="solid",
         fill_colors=[color],
         border_width=0,
@@ -122,17 +148,18 @@ def _rect(element_id: str, x: int, top: int, width: int, color: str) -> Any:
 
 
 def _beside(
-    n: int, row: Row, window: Window | None, now: float, top: int, colors: Colors
+    n: int, row: Row, window: Window | None, now: float, top: int, colors: Colors, rows: Rows
 ) -> Any | None:
     if row.text == "none":
         return None
     if window is None or (row.text == "time" and not window.running):
-        return _small(f"cc{n}_text", "--", WIDTH, top, "top_right", colors.idle)
+        return _text(f"cc{n}_text", "--", WIDTH, top, "top_right", colors.idle, rows)
     if row.text == "percent":
-        return _small(f"cc{n}_text", f"{window.used:.0f}%", WIDTH, top, "top_right", colors.text)
+        used = f"{window.used:.0f}%"
+        return _text(f"cc{n}_text", used, WIDTH, top, "top_right", colors.text, rows)
     left = window.left(now) or 0.0
     if left > COUNTDOWN_UNDER:
-        return _small(f"cc{n}_text", duration(left), WIDTH, top, "top_right", colors.text)
+        return _text(f"cc{n}_text", duration(left), WIDTH, top, "top_right", colors.text, rows)
     return types.CountdownElement(
         id=f"cc{n}_clock",
         timestamp=str(window.resets_at),
@@ -140,7 +167,7 @@ def _beside(
         show_hours="when_non_zero",
         color=colors.text,
         x=WIDTH,
-        y=top + COUNTDOWN_OFFSET,
+        y=rows.countdown_y(top),
         align="bottom_right",
     )
 
@@ -149,29 +176,24 @@ def elements(feed: Feed, now: float, display: DisplayConfig) -> list[Any]:
     windows = feed.at(now)
     rows = display.rows
     colors = display.colors
+    layout = ROWS[len(rows)]
     labelled = any(row.shown_label for row in rows)
     x = BAR_X if labelled else 0
     right = max(RIGHT_WIDTH[row.text] for row in rows)
     width = WIDTH - x - right - (GAP if right else 0)
     drawn: list[Any] = []
-    for n, (row, top) in enumerate(zip(rows, ROW_TOPS[len(rows)], strict=True)):
+    for n, (row, top) in enumerate(zip(rows, layout.tops, strict=True)):
         window = windows.get(row.window)
         used = window.used if window is not None else 0.0
         if row.shown_label:
-            drawn.append(_small(f"cc{n}_label", row.shown_label, 0, top, "top_left", colors.label))
-        drawn.append(_rect(f"cc{n}_track", x, top, width, colors.track))
+            label = row.shown_label
+            drawn.append(_text(f"cc{n}_label", label, 0, top, "top_left", colors.label, layout))
+        drawn.append(_rect(f"cc{n}_track", x, top, width, colors.track, layout))
         lit = fill_width(used, width)
         # Always there, so the ids do not change at 0%: an unlit fill is one track pixel.
-        drawn.append(
-            _rect(
-                f"cc{n}_fill",
-                x,
-                top,
-                max(lit, 1),
-                bar_color(used, display) if lit else colors.track,
-            )
-        )
-        if (beside := _beside(n, row, window, now, top, colors)) is not None:
+        color = bar_color(used, display) if lit else colors.track
+        drawn.append(_rect(f"cc{n}_fill", x, top, max(lit, 1), color, layout))
+        if (beside := _beside(n, row, window, now, top, colors, layout)) is not None:
             drawn.append(beside)
     return drawn
 

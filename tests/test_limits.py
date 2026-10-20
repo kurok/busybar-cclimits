@@ -112,3 +112,11 @@ def test_default_feed(monkeypatch, tmp_path):
 )
 def test_duration(seconds, text):
     assert duration(seconds) == text
+
+
+def test_any_window_name_is_kept():
+    stored = merge(
+        {}, status(seven_day_fable={"used_percentage": 57, "resets_at": NOW + 9}, odd=3), NOW
+    )
+    assert set(stored["rate_limits"]) == {"seven_day_fable"}
+    assert Feed.parse(stored).windows["seven_day_fable"].used == 57

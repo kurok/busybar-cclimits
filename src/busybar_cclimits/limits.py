@@ -101,7 +101,8 @@ class Feed:
         data = data if isinstance(data, dict) else {}
         raw = data.get("rate_limits")
         raw = raw if isinstance(raw, dict) else {}
-        windows = {name: w for name in WINDOWS if (w := Window.parse(raw.get(name))) is not None}
+        # Any name: the status line sends WINDOWS, the usage API per-model ones too.
+        windows = {name: w for name, value in raw.items() if (w := Window.parse(value)) is not None}
         return cls(windows, _number(data.get("updated_at")), _number(data.get("seen_at")))
 
     def at(self, now: float) -> dict[str, Window]:
@@ -127,9 +128,8 @@ def merge(stored: dict[str, Any], status: Any, now: float) -> dict[str, Any]:
     updated_at = stored.get("updated_at")
     incoming = status.get("rate_limits") if isinstance(status, dict) else None
     if isinstance(incoming, dict):
-        for name in WINDOWS:
-            raw = incoming.get(name)
-            if Window.parse(raw) is None:
+        for name, raw in incoming.items():
+            if not isinstance(name, str) or Window.parse(raw) is None:
                 continue
             new = _clean(raw)
             old = limits.get(name, {})

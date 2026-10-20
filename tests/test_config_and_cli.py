@@ -115,3 +115,16 @@ def test_describe_a_refused_draw():
 
     (line,) = cli.describe(BusyBarAPIError("Not drawn due to low priority", status_code=409))
     assert "higher priority" in line
+
+
+def test_per_model_windows():
+    from busybar_cclimits.config import Row
+
+    assert Row(window="seven_day_fable").shown_label == "FB"
+    assert Row(window="seven_day_opus").shown_label == "OP"
+    assert Row(window="seven_day_haiku").shown_label == "HA"
+    for bad in ("five_hours", "fable", "seven_day_", "SEVEN_DAY"):
+        with pytest.raises(ValidationError):
+            Row(window=bad)
+    with pytest.raises(ValidationError):
+        Config.model_validate({"display": {"rows": [{"window": "five_hour"}] * 4}})

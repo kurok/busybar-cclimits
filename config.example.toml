@@ -35,9 +35,11 @@ critical_at = 90
 # takes the screen back after a calendar reminder or a BUSY session.
 refresh_seconds = 60
 
-# One or two rows, top to bottom. `window`: five_hour, seven_day or
-# spend_limit (behind a Claude apps gateway). `label`: up to 2 characters
-# (5H, WK and $ by default; "" for none). `text` beside the bar: "time" to the
+# One to three rows, top to bottom; three are drawn in the 4-pixel tiny font.
+# `window`: five_hour, seven_day, spend_limit (behind a Claude apps gateway),
+# or a model's own window as seven_day_<model> - seven_day_fable,
+# seven_day_opus, seven_day_sonnet. `label`: up to 2 characters (5H, WK, $,
+# FB, OP, SN by default, else the model's first two letters; "" for none). `text` beside the bar: "time" to the
 # reset (a live countdown once under 10 hours, 21h or 3d4h further out),
 # "percent", or "none" for a longer bar.
 [[display.rows]]
