@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- The README's screens are captures from a real bar. The previews script pads
+  the countdown's hours as the firmware does (`01:42:07`).
+
 ## [0.2.0] - 2026-10-20
 
 ### Added
