@@ -1,0 +1,195 @@
+"""
+Claude Code's rate limits as its status line reports them, and the file that
+carries them from the status line to the service.
+
+Claude Code hands its status line command a JSON object on every update.
+For claude.ai subscribers, and behind a Claude apps gateway with a spend
+limit, it holds `rate_limits`: a rolling `five_hour` window, a `seven_day`
+one and a `spend_limit`, each with `used_percentage` (0-100) and
+`resets_at` (Unix seconds). A window can be missing, and Claude Code drops
+one once its `resets_at` has passed - so a window that is no longer
+reported keeps its last values here, and reads as reset once its time is up.
+
+Only the standard library: this runs inside the status line, every few
+seconds, and must not slow it down.
+"""
+
+from __future__ import annotations
+
+import contextlib
+import json
+import os
+import tempfile
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+FEED_ENV = "BUSYBAR_CCLIMITS_FEED"
+WINDOWS = ("five_hour", "seven_day", "spend_limit")
+# Kept from each window; the rest of the status line input never reaches the file.
+FIELDS = ("used_percentage", "resets_at", "used_usd", "limit_usd", "period")
+# A status line that runs every few seconds rewrites the file this often at
+# most when nothing changed, so `seen_at` stays a useful "Claude Code is open".
+SEEN_EVERY = 30
+VERSION = 1
+
+
+def default_feed() -> Path:
+    """$BUSYBAR_CCLIMITS_FEED, else ~/.cache/busybar-cclimits/limits.json."""
+    if found := os.environ.get(FEED_ENV):
+        return Path(found).expanduser()
+    cache = os.environ.get("XDG_CACHE_HOME") or "~/.cache"
+    return Path(cache).expanduser() / "busybar-cclimits" / "limits.json"
+
+
+def _number(value: Any) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    return float(value)
+
+
+@dataclass(frozen=True)
+class Window:
+    """One limit: how much of it is used, and when it starts over."""
+
+    used: float  # percent; a spend limit can go past 100
+    resets_at: int | None  # Unix seconds; None once it has reset
+    used_usd: float | None = None
+    limit_usd: float | None = None
+    period: str | None = None
+
+    @classmethod
+    def parse(cls, raw: Any) -> Window | None:
+        if not isinstance(raw, dict) or (used := _number(raw.get("used_percentage"))) is None:
+            return None
+        resets = _number(raw.get("resets_at"))
+        period = raw.get("period")
+        return cls(
+            used=max(used, 0.0),
+            resets_at=int(resets) if resets is not None else None,
+            used_usd=_number(raw.get("used_usd")),
+            limit_usd=_number(raw.get("limit_usd")),
+            period=period if isinstance(period, str) else None,
+        )
+
+    @property
+    def running(self) -> bool:
+        return self.resets_at is not None
+
+    def at(self, now: float) -> Window:
+        """The window as of `now`: once its reset time has passed, none of it is used."""
+        if self.resets_at is not None and now >= self.resets_at:
+            spent = 0.0 if self.used_usd is not None else None
+            return Window(0.0, None, spent, self.limit_usd, self.period)
+        return self
+
+    def left(self, now: float) -> float | None:
+        """Seconds until it resets; None when no window is running."""
+        return None if self.resets_at is None else max(0.0, self.resets_at - now)
+
+
+@dataclass(frozen=True)
+class Feed:
+    """What the status line last wrote."""
+
+    windows: dict[str, Window]
+    updated_at: float | None  # when Claude Code last sent rate limits
+    seen_at: float | None  # when the status line last ran
+
+    @classmethod
+    def parse(cls, data: Any) -> Feed:
+        data = data if isinstance(data, dict) else {}
+        raw = data.get("rate_limits")
+        raw = raw if isinstance(raw, dict) else {}
+        windows = {name: w for name in WINDOWS if (w := Window.parse(raw.get(name))) is not None}
+        return cls(windows, _number(data.get("updated_at")), _number(data.get("seen_at")))
+
+    def at(self, now: float) -> dict[str, Window]:
+        return {name: window.at(now) for name, window in self.windows.items()}
+
+
+def _clean(raw: dict[str, Any]) -> dict[str, Any]:
+    return {key: raw[key] for key in FIELDS if key in raw}
+
+
+def merge(stored: dict[str, Any], status: Any, now: float) -> dict[str, Any]:
+    """
+    The file's next contents, from what it holds and one status line input.
+
+    A window that comes in replaces the stored one, field by field while the
+    period is the same: a spend limit's dollar amounts arrive on a slower
+    schedule than its percentage, and must not blink out in between.
+    """
+    limits = stored.get("rate_limits")
+    limits = (
+        {k: v for k, v in limits.items() if isinstance(v, dict)} if isinstance(limits, dict) else {}
+    )
+    updated_at = stored.get("updated_at")
+    incoming = status.get("rate_limits") if isinstance(status, dict) else None
+    if isinstance(incoming, dict):
+        for name in WINDOWS:
+            raw = incoming.get(name)
+            if Window.parse(raw) is None:
+                continue
+            new = _clean(raw)
+            old = limits.get(name, {})
+            same_period = old.get("resets_at") == new.get("resets_at")
+            limits[name] = {**old, **new} if same_period else new
+            updated_at = now
+    return {"version": VERSION, "seen_at": now, "updated_at": updated_at, "rate_limits": limits}
+
+
+def read_raw(path: Path) -> dict[str, Any]:
+    with contextlib.suppress(OSError, ValueError):
+        data = json.loads(path.read_text())
+        if isinstance(data, dict):
+            return data
+    return {}
+
+
+def read(path: Path) -> Feed | None:
+    """The feed, or None when the status line has never written one."""
+    data = read_raw(path)
+    return Feed.parse(data) if data else None
+
+
+def write(path: Path, data: dict[str, Any]) -> None:
+    """Replace the file in one step, so a reader never sees half of it."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(prefix=".limits-", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(data, f, separators=(",", ":"))
+        os.replace(tmp, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
+
+
+def record(path: Path, status: Any, now: float) -> bool:
+    """Store one status line input; False when nothing needed writing."""
+    stored = read_raw(path)
+    new = merge(stored, status, now)
+    # The times move on with every input; only the limits themselves are worth
+    # a write each time, the times every SEEN_EVERY seconds.
+    same = stored.get("version") == VERSION and new["rate_limits"] == stored.get("rate_limits")
+    seen = _number(stored.get("seen_at"))
+    if same and seen is not None and 0 <= now - seen < SEEN_EVERY:
+        return False
+    write(path, new)
+    return True
+
+
+def duration(seconds: float) -> str:
+    """A short time span for a 4-5 character slot: 42m, 3h05, 21h, 3d4h."""
+    minutes = int(seconds // 60)
+    if minutes < 60:
+        return f"{max(minutes, 0)}m"
+    hours, minutes = divmod(minutes, 60)
+    if hours < 10:
+        return f"{hours}h{minutes:02d}"
+    if hours < 24:
+        return f"{hours}h"
+    days, hours = divmod(hours, 24)
+    return f"{days}d{hours}h" if hours else f"{days}d"

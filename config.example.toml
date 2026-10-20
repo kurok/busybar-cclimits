@@ -1,0 +1,64 @@
+# busybar-cclimits: every setting, with its default. Only [bar] needs filling
+# in; leave the rest out unless you want to change it.
+# `busybar-cclimits init` writes ~/.config/busybar-cclimits/config.toml.
+
+[bar]
+# The bar on your network, `ip[:port]`, or 10.0.4.20 over USB. Leave it out
+# to reach the bar through BUSY Cloud.
+# address = "10.0.4.20"
+
+# With an address, the bar's HTTP API password (only if its Wi-Fi API asks
+# for one); without, a BUSY Cloud token with the "BUSY Bar" access scope.
+# Give it inline (`token`), from the environment (`token_env`) or from a
+# command run without a shell (`token_command`) - the macOS Keychain here:
+# token_command = ["security", "find-generic-password", "-s", "busybar", "-w"]
+
+# 50 is above the bar's own apps (10) and gives way to a running BUSY
+# session (90) and to calendar reminders (91).
+priority = 50
+application_name = "busybar-cclimits"
+
+[display]
+# "always": while there are limits to show. "with_claude": only while Claude
+# Code has updated them in the last `idle_minutes`, or while a limit is at
+# `keep_above` percent or more and has not reset - the bar gets its own
+# screens back in between.
+show = "always"
+idle_minutes = 15
+keep_above = 80
+
+# Bars turn yellow at warn_at percent and red at critical_at.
+warn_at = 75
+critical_at = 90
+
+# The drawing is sent again this often even when nothing changed, which
+# takes the screen back after a calendar reminder or a BUSY session.
+refresh_seconds = 60
+
+# One or two rows, top to bottom. `window`: five_hour, seven_day or
+# spend_limit (behind a Claude apps gateway). `label`: up to 2 characters
+# (5H, WK and $ by default; "" for none). `text` beside the bar: "time" to the
+# reset (a live countdown once under 10 hours, 21h or 3d4h further out),
+# "percent", or "none" for a longer bar.
+[[display.rows]]
+window = "five_hour"
+text = "time"
+
+[[display.rows]]
+window = "seven_day"
+text = "percent"
+
+# Colours are #RRGGBBAA.
+[display.colors]
+label = "#D97757FF"
+track = "#333333FF"
+ok = "#00C853FF"
+warn = "#FFC800FF"
+critical = "#FF2A00FF"
+text = "#FFFFFFFF"
+idle = "#5A5A5AFF"
+
+[feed]
+# Where the status line hook writes the limits; the hook uses
+# $BUSYBAR_CCLIMITS_FEED or this same default, so change both together.
+# path = "~/.cache/busybar-cclimits/limits.json"
