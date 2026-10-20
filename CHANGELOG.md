@@ -2,17 +2,32 @@
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-20
+
+### Added
+
+- Up to three rows. A third row switches every row to the bar's 4-pixel tiny
+  font, with 2-pixel gaps between the bars; the countdown keeps its 5-pixel
+  digits, and on the bottom row they end on the panel's last row.
+- Rows for a model's own limit: `seven_day_<model>` or `five_hour_<model>`,
+  such as `seven_day_fable`, `seven_day_opus` and `seven_day_sonnet`,
+  labelled FB, OP and SN (else the model's first two letters). The status
+  line does not report these windows, so such a row shows `--` until
+  something writes them to the feed.
+- `snapshot` draws sample states on the bar and saves what its front
+  display then shows, as 72x16 PNGs; `scripts/render_previews.py` draws the
+  same samples in the firmware's fonts without a bar.
+- Previews in the README, and `preview.gif` for the BUSY Bar app gallery.
 - CI runs the app against the BUSY Bar emulator too (`tests/emulator`): every
-  sample drawing, the runner's clear-on-new-ids, giving way to a higher
-  priority and taking the screen back, the service, `test` and `app.py`.
+  sample drawing, the clear when the element ids change, giving way to a
+  higher priority and taking the screen back, redraws in place, the service,
+  `test` and `app.py`.
 
-- Up to three rows, the third set in the 4-pixel tiny font, and per-model
-  windows (`seven_day_fable`, `seven_day_opus`, `seven_day_sonnet`, any
-  `seven_day_<model>`), labelled FB, OP, SN.
+### Changed
 
-- `snapshot` draws sample states on the bar and saves what it shows.
-- A refused draw says what holds the bar instead of the bar's error text.
-- Previews in the README and `preview.gif`, from `scripts/render_previews.py`.
+- A draw the bar refuses because something with a higher priority holds the
+  screen - a BUSY session or a calendar event - says so, instead of
+  printing the bar's error.
 
 ## [0.1.0] - 2026-10-20
 
@@ -29,3 +44,7 @@ First release.
 - Priority 50, re-sent every minute, with `display_until` on every element.
 - `init`, `status`, `test`, `demo`, `run`, `install` (launchd / systemd,
   `--auto-update`), `restart`, `uninstall`; `app.py` for the gallery.
+
+[Unreleased]: https://github.com/kurok/busybar-cclimits/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/kurok/busybar-cclimits/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/kurok/busybar-cclimits/releases/tag/v0.1.0
