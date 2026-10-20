@@ -118,14 +118,39 @@ class BarConfig(_Strict):
         return _fold_secret(dict(data), "token") if isinstance(data, dict) else data
 
 
-Window = Literal["five_hour", "seven_day", "spend_limit"]
-DEFAULT_LABELS = {"five_hour": "5H", "seven_day": "WK", "spend_limit": "$"}
+# The windows with names of their own. A per-model window - Claude Code has
+# Opus and Sonnet limits - is `seven_day_<model>` or `five_hour_<model>`.
+KNOWN_WINDOWS = ("five_hour", "seven_day", "spend_limit")
+DEFAULT_LABELS = {
+    "five_hour": "5H",
+    "seven_day": "WK",
+    "spend_limit": "$",
+    "seven_day_opus": "OP",
+    "seven_day_sonnet": "SN",
+    "seven_day_fable": "FB",
+}
+_PER_MODEL = re.compile(r"(five_hour|seven_day)_[a-z][a-z0-9_]{0,30}")
+
+
+def _window(value: str) -> str:
+    if value in KNOWN_WINDOWS or _PER_MODEL.fullmatch(value):
+        return value
+    raise ValueError(
+        f"{value!r} is not a limit: five_hour, seven_day, spend_limit, or a model's "
+        "seven_day_<model> such as seven_day_fable"
+    )
+
+
+Window = Annotated[str, AfterValidator(_window)]
 
 
 class Row(_Strict):
     window: Window
     label: str | None = Field(
-        default=None, max_length=2, description="Up to 2 characters; 5H, WK or $ by default."
+        default=None,
+        max_length=2,
+        description="Up to 2 characters; 5H, WK, $, OP, SN, FB by default, else the model's "
+        "first two letters.",
     )
     text: Literal["time", "percent", "none"] = Field(
         default="time",
@@ -135,7 +160,9 @@ class Row(_Strict):
 
     @property
     def shown_label(self) -> str:
-        return self.label if self.label is not None else DEFAULT_LABELS[self.window]
+        if self.label is not None:
+            return self.label
+        return DEFAULT_LABELS.get(self.window) or self.window.split("_")[-1][:2].upper()
 
 
 def _default_rows() -> list[Row]:
@@ -161,7 +188,12 @@ class DisplayConfig(_Strict):
     )
     idle_minutes: int = Field(default=15, ge=1)
     keep_above: float = Field(default=80, ge=0, le=100)
-    rows: list[Row] = Field(default_factory=_default_rows, min_length=1, max_length=2)
+    rows: list[Row] = Field(
+        default_factory=_default_rows,
+        min_length=1,
+        max_length=3,
+        description="One to three rows; three are drawn in the 4-pixel tiny font.",
+    )
     warn_at: float = Field(default=75, ge=0, le=100, description="Bars turn yellow here.")
     critical_at: float = Field(default=90, ge=0, le=100, description="And red here.")
     refresh_seconds: int = Field(

@@ -123,3 +123,33 @@ def test_drawing_payload():
     # The bar's API takes colours with their alpha byte.
     assert all(len(e["color"]) == 9 for e in texts)
     assert render.key(elements) == render.key(render.elements(feed(), NOW, config.display))
+
+
+THREE = DisplayConfig.model_validate(
+    {
+        "rows": [
+            {"window": "five_hour"},
+            {"window": "seven_day", "text": "percent"},
+            {"window": "seven_day_fable"},
+        ]
+    }
+)
+
+
+def test_three_rows_in_the_tiny_font():
+    f = feed()
+    f.windows["seven_day_fable"] = Window(57, int(NOW + 6 * 3600))
+    drawn = by_id(render.elements(f, NOW, THREE))
+    assert [drawn[f"cc{n}_track"].y for n in range(3)] == [0, 6, 12]
+    assert {drawn[f"cc{n}_track"].height for n in range(3)} == {4}
+    assert drawn["cc2_label"].text == "FB" and drawn["cc2_label"].font == "tiny"
+    assert drawn["cc0_label"].y == -1  # tiny glyphs start a row below the anchor
+    # The countdown's 5-pixel digits: from the top row down, and the last
+    # row's kept on the panel (rows 11-15).
+    assert drawn["cc0_clock"].y == 9 and drawn["cc2_clock"].y == 20
+    assert drawn["cc1_text"].font == "tiny"
+
+
+def test_countdown_rows_for_one_and_two_rows_are_unchanged():
+    assert render.ROWS[2].countdown_y(2) == 11 and render.ROWS[2].countdown_y(10) == 19
+    assert render.ROWS[1].countdown_y(6) == 15

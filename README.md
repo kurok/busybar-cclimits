@@ -84,6 +84,7 @@ in the last 15 minutes, or while a window is at 80% or more.
 | ![](docs/images/week-time.png) | `text = "time"` on the week too |
 | ![](docs/images/single.png) | One row |
 | ![](docs/images/bars-only.png) | `text = "none"`: bars only |
+| ![](docs/images/fable.png) | Three rows: a `seven_day_fable` row under the week |
 
 `scripts/render_previews.py` draws these from the app's own layout code in
 the firmware's fonts; `busybar-cclimits snapshot` draws each sample on a real
@@ -92,8 +93,9 @@ bar and saves what its display then shows.
 ## Configuration
 
 Every setting has a default; [config.example.toml](config.example.toml)
-lists them all. Among them: which windows the two rows show
-(`five_hour`, `seven_day`, `spend_limit`), what is printed beside each bar
+lists them all. Among them: which windows the rows show - up to three, of
+`five_hour`, `seven_day`, `spend_limit` and per-model windows such as
+`seven_day_fable` - what is printed beside each bar
 (`time`, `percent` or `none`), the thresholds and every colour.
 
 ## Commands

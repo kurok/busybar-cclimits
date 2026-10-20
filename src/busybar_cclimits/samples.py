@@ -20,6 +20,8 @@ class Sample:
     week: float = 18
     week_left: float = 3 * DAY + 4 * HOUR
     spend: float | None = None
+    # Further windows: name -> (percent used, seconds to the reset).
+    extra: dict[str, tuple[float, float]] = field(default_factory=dict)
     display: dict[str, Any] = field(default_factory=dict)
 
     def feed(self, now: float) -> Feed:
@@ -34,6 +36,8 @@ class Sample:
             windows["spend_limit"] = Window(
                 self.spend, int(now + 9 * DAY), 314.12, 500.0, "monthly"
             )
+        for name, (used, left) in self.extra.items():
+            windows[name] = Window(used, int(now + left))
         return Feed(windows, updated_at=now, seen_at=now)
 
     def display_config(self, base: DisplayConfig | None = None) -> DisplayConfig:
@@ -82,6 +86,32 @@ SAMPLES: dict[str, Sample] = {
         42,
         spend=63,
         display={"rows": [{"window": "five_hour"}, {"window": "spend_limit", "text": "percent"}]},
+    ),
+    "fable": Sample(
+        "Three rows: the 5-hour window, the week and Fable",
+        42,
+        extra={"seven_day_fable": (57, 2 * DAY + 6 * HOUR)},
+        display={
+            "rows": [
+                {"window": "five_hour"},
+                {"window": "seven_day", "text": "percent"},
+                {"window": "seven_day_fable", "text": "percent"},
+            ]
+        },
+    ),
+    "fable-near": Sample(
+        "Three rows, Fable nearly out and resetting within hours",
+        61,
+        five_left=3 * HOUR + 10 * 60,
+        week=47,
+        extra={"seven_day_fable": (93, 6 * HOUR + 12 * 60)},
+        display={
+            "rows": [
+                {"window": "five_hour", "text": "percent"},
+                {"window": "seven_day", "text": "percent"},
+                {"window": "seven_day_fable"},
+            ]
+        },
     ),
 }
 

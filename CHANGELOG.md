@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Up to three rows, the third set in the 4-pixel tiny font, and per-model
+  windows (`seven_day_fable`, `seven_day_opus`, `seven_day_sonnet`, any
+  `seven_day_<model>`), labelled FB, OP, SN.
+
 - `snapshot` draws sample states on the bar and saves what it shows.
 - A refused draw says what holds the bar instead of the bar's error text.
 - Previews in the README and `preview.gif`, from `scripts/render_previews.py`.
