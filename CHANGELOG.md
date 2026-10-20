@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- CI runs the app against the BUSY Bar emulator too (`tests/emulator`): every
+  sample drawing, the runner's clear-on-new-ids, giving way to a higher
+  priority and taking the screen back, the service, `test` and `app.py`.
+
 - Up to three rows, the third set in the 4-pixel tiny font, and per-model
   windows (`seven_day_fable`, `seven_day_opus`, `seven_day_sonnet`, any
   `seven_day_<model>`), labelled FB, OP, SN.
