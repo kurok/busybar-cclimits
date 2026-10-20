@@ -85,10 +85,13 @@ in the last 15 minutes, or while a window is at 80% or more.
 | ![](docs/images/single.png) | One row |
 | ![](docs/images/bars-only.png) | `text = "none"`: bars only |
 | ![](docs/images/fable.png) | Three rows: a `seven_day_fable` row under the week |
+| ![](docs/images/models.png) | The week, Opus and Sonnet |
 
-`scripts/render_previews.py` draws these from the app's own layout code in
-the firmware's fonts; `busybar-cclimits snapshot` draws each sample on a real
-bar and saves what its display then shows.
+These are captures from a real bar (firmware 1.2.4): `busybar-cclimits
+snapshot` draws each sample and saves what the display then shows.
+`scripts/render_previews.py` draws the same samples without a bar, in the
+firmware's fonts; its pictures match the bar's LED for LED except for the
+seconds of a ticking countdown, and `preview.gif` comes from it.
 
 ## Configuration
 

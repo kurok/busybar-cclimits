@@ -8,8 +8,9 @@ Text is set in the device's own fonts, from the glyph atlas the BUSY Bar
 emulator bakes from the firmware (github.com/maxswinkels/busybar-emulator,
 public/fonts/font-atlas.json; not shipped here), placed the way its renderer
 places them. The one difference is the countdown: the emulator draws it in a
-10px bold font, the firmware in a 5px one whose digits land on rows y-9..y-5
-of a bottom anchor (measured on firmware 1.2.4); here it is the small font,
+10px bold font, the firmware in 5px digits as wide as the small font's, on
+rows y-9..y-5 of a bottom anchor, with the hours zero-padded - "01:42:07",
+27 pixels (measured on a bar with firmware 1.2.4); here it is the small font,
 on those rows.
 
     uv run --with pillow python scripts/render_previews.py \
@@ -108,7 +109,8 @@ class Canvas:
                 left = max(0, int(el["timestamp"]) - int(now))
                 h, rem = divmod(left, 3600)
                 m, s = divmod(rem, 60)
-                shown = f"{h}:{m:02d}:{s:02d}" if h else f"{m:02d}:{s:02d}"
+                # As the firmware shows it: hours zero-padded, when there are any.
+                shown = f"{h:02d}:{m:02d}:{s:02d}" if h else f"{m:02d}:{s:02d}"
                 # Small-font digits sit 2 rows into a 9-row box; the firmware's
                 # countdown digits end 5 rows above its bottom anchor.
                 self.text(el, shown, "small", raise_by=2)

@@ -39,7 +39,8 @@ HEIGHT = 16
 BAR_X = 12
 GAP = 1
 # Room on the right for the longest thing each text mode draws: the
-# countdown's "9:59:59" in its superscript font, or "100%" / "6d23h" in small.
+# countdown's "09:59:59", 27 pixels (it zero-pads the hours; measured on
+# firmware 1.2.4), or "100%" / "6d23h" in the small font.
 RIGHT_WIDTH = {"time": 28, "percent": 17, "none": 0}
 COUNTDOWN_UNDER = 10 * 3600
 # The countdown's 5-pixel digits land on rows y-9..y-5 of its bottom anchor
