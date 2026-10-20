@@ -132,8 +132,18 @@ uv tool uninstall busybar-cclimits
 
 ```sh
 uv sync
-uv run pytest
+uv run pytest -m "not emulator"
 uv run ruff check . && uv run ruff format --check .
+```
+
+`tests/emulator` runs the app against the
+[BUSY Bar emulator](https://github.com/maxswinkels/busybar-emulator), which
+enforces the firmware's draw contract: element ids, colours, priorities and
+409s, merge-by-id and the 100-element cap. Point `BUSYBAR_EMULATOR` at a
+checkout (no `npm install` needed, only `node`):
+
+```sh
+BUSYBAR_EMULATOR=~/src/busybar-emulator uv run pytest tests/emulator
 ```
 
 MIT licensed. Not affiliated with Anthropic or Flipper Devices.
