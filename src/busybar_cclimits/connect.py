@@ -8,7 +8,6 @@ import signal
 
 from busylib.client import AsyncBusyBar
 
-from . import limits
 from .config import Config, ConfigError
 
 
@@ -19,19 +18,6 @@ def make_bar(config: Config) -> AsyncBusyBar:
     if not token:
         raise ConfigError("give bar.address, or a BUSY Cloud token with the bar scope as bar.token")
     return AsyncBusyBar(token=token)
-
-
-def sample(now: float, five: float = 42, week: float = 18) -> limits.Feed:
-    """Made-up limits, for `demo` and `test`."""
-    return limits.Feed(
-        {
-            "five_hour": limits.Window(five, int(now) + 1 * 3600 + 42 * 60 + 10),
-            "seven_day": limits.Window(week, int(now) + 3 * 86400 + 4 * 3600),
-            "spend_limit": limits.Window(63, int(now) + 9 * 86400, 314.12, 500.0, "monthly"),
-        },
-        updated_at=now,
-        seen_at=now,
-    )
 
 
 def stop_on_signals() -> asyncio.Event:

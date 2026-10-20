@@ -243,6 +243,7 @@ async def cmd_demo(config: Any, seconds: float, steps: list[tuple[float, float]]
     import asyncio
 
     from . import connect, render
+    from .samples import Sample
 
     bar = connect.make_bar(config)
     stop = connect.stop_on_signals()
@@ -251,7 +252,7 @@ async def cmd_demo(config: Any, seconds: float, steps: list[tuple[float, float]]
         await render.clear(bar, config.bar.application_name)
         for five, week in steps:
             now = time.time()
-            drawn = render.elements(connect.sample(now, five, week), now, config.display)
+            drawn = render.elements(Sample("", five, week=week).feed(now), now, config.display)
             until = now + each + 5
             await render.send(
                 bar, render.drawing(drawn, until, config.bar.application_name, config.bar.priority)
@@ -267,7 +268,40 @@ async def cmd_demo(config: Any, seconds: float, steps: list[tuple[float, float]]
     return 0
 
 
-DEMO_STEPS = [(8, 3), (27, 11), (42, 18), (61, 24), (78, 31), (93, 38), (100, 40)]
+async def cmd_snapshot(config: Any, names: list[str], out: Path, hold: float) -> int:
+    """Draw each sample and save what the bar's front display then shows, as a 72x16 PNG."""
+    import asyncio
+
+    from busylib.exceptions import BusyBarAPIError
+
+    from . import connect, render
+    from .samples import SAMPLES
+
+    bar = connect.make_bar(config)
+    app, priority = config.bar.application_name, config.bar.priority
+    out.mkdir(parents=True, exist_ok=True)
+    try:
+        for name in names:
+            sample = SAMPLES[name]
+            now = time.time()
+            # Each layout has ids of its own: clear, or the last one's would stay.
+            await render.clear(bar, app)
+            drawn = render.elements(sample.feed(now), now, sample.display_config(config.display))
+            try:
+                await render.send(bar, render.drawing(drawn, now + hold + 30, app, priority))
+            except BusyBarAPIError as error:
+                if error.status_code == 409:
+                    print(f"{name}: the bar shows something with a higher priority; skipped")
+                    continue
+                raise
+            await asyncio.sleep(hold)
+            path = out / f"{name}.png"
+            path.write_bytes((await bar.frame("front")).to_png())
+            print(f"{name}: {path}")
+    finally:
+        await render.clear(bar, app)
+        await bar.aclose()
+    return 0
 
 
 def describe(error: BaseException) -> list[str]:
@@ -279,6 +313,13 @@ def describe(error: BaseException) -> list[str]:
             f"{'.'.join(str(part) for part in problem['loc']) or 'config'}: "
             f"{problem['msg'].removeprefix('Value error, ')}"
             for problem in error.errors()
+        ]
+    from busylib.exceptions import BusyBarAPIError
+
+    if isinstance(error, BusyBarAPIError) and error.status_code == 409:
+        return [
+            "the bar shows something with a higher priority than this app's "
+            "- a BUSY session or a calendar event; try again once it ends"
         ]
     return [str(error) or type(error).__name__]
 
@@ -343,6 +384,13 @@ def _parser() -> argparse.ArgumentParser:
     commands.add_parser("test", help="draw sample limits on the bar for 20 seconds")
     demo = commands.add_parser("demo", help="draw sample limits filling up")
     demo.add_argument("--seconds", type=float, default=28)
+
+    snapshot = commands.add_parser(
+        "snapshot", help="draw sample states and save what the bar shows, as PNGs"
+    )
+    snapshot.add_argument("sample", nargs="*", help="which samples (default: all)")
+    snapshot.add_argument("--out", default="snapshots", help="folder for the PNGs")
+    snapshot.add_argument("--hold", type=float, default=2.0, help="seconds before each capture")
 
     install = commands.add_parser("install", help="run in the background (launchd / systemd)")
     install.add_argument("--dry-run", action="store_true")
@@ -434,7 +482,17 @@ def main(argv: list[str] | None = None, program: list[str] | None = None) -> int
             print("Drawing sample limits for 20 seconds (5-hour 42%, weekly 18%).")
             return asyncio.run(cmd_demo(config, 20, [(42, 18)]))
         if args.command == "demo":
+            from .samples import DEMO_STEPS
+
             return asyncio.run(cmd_demo(config, args.seconds, DEMO_STEPS))
+        if args.command == "snapshot":
+            from .samples import SAMPLES
+
+            names = args.sample or list(SAMPLES)
+            unknown = sorted(set(names) - set(SAMPLES))
+            if unknown:
+                raise ValueError(f"no sample {', '.join(unknown)}; there are {', '.join(SAMPLES)}")
+            return asyncio.run(cmd_snapshot(config, names, Path(args.out), args.hold))
     except KeyboardInterrupt:
         return 130
     except Exception as error:

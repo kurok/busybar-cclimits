@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- `snapshot` draws sample states on the bar and saves what it shows.
+- A refused draw says what holds the bar instead of the bar's error text.
+- Previews in the README and `preview.gif`, from `scripts/render_previews.py`.
+
 ## [0.1.0] - 2026-10-20
 
 First release.

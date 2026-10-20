@@ -3,12 +3,11 @@
 Claude Code's usage limits on a [BUSY Bar](https://busy.bar): a bar for the
 5-hour window with a live countdown to its reset, and one for the week.
 
-```
-5H ███████████░░░░░░░░░ 1:42:10     5-hour window: used, and the time to its reset
-WK ████░░░░░░░░░░░░░░░░     18%     the week: used, and the percentage
-```
+![The 5-hour bar filling up while its countdown runs down](preview.gif)
 
-Bars are green, yellow from 75% and red from 90%. The countdown ticks on
+The top row is the 5-hour window, with the time to its reset; the bottom row
+is the week, with the percentage used. Bars are green, yellow from 75% and
+red from 90%. The countdown ticks on
 the bar itself; once a window resets the bar empties and the time reads `--`
 until Claude Code starts a new one.
 
@@ -75,6 +74,21 @@ To have the bar show the limits only while you work with Claude Code, set
 `show = "with_claude"`: the limits stay up while Claude Code has updated them
 in the last 15 minutes, or while a window is at 80% or more.
 
+## Screens
+
+| | |
+| --- | --- |
+| ![](docs/images/warn.png) | Past 75%: yellow |
+| ![](docs/images/critical.png) | Past 90%: red |
+| ![](docs/images/reset.png) | The 5-hour window has reset |
+| ![](docs/images/week-time.png) | `text = "time"` on the week too |
+| ![](docs/images/single.png) | One row |
+| ![](docs/images/bars-only.png) | `text = "none"`: bars only |
+
+`scripts/render_previews.py` draws these from the app's own layout code in
+the firmware's fonts; `busybar-cclimits snapshot` draws each sample on a real
+bar and saves what its display then shows.
+
 ## Configuration
 
 Every setting has a default; [config.example.toml](config.example.toml)
@@ -92,6 +106,7 @@ lists them all. Among them: which windows the two rows show
 | `init --cloud` / `init --host ADDR` | write the config |
 | `status [--json]` | the limits, the hook and the service |
 | `test`, `demo` | sample limits on the bar |
+| `snapshot [SAMPLE...]` | draw sample states and save what the bar shows, as 72x16 PNGs |
 | `run [--auto-update]` | the service, in the foreground |
 | `install`, `restart`, `uninstall` | the background service |
 
