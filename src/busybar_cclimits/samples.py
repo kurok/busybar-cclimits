@@ -113,6 +113,22 @@ SAMPLES: dict[str, Sample] = {
             ]
         },
     ),
+    "models": Sample(
+        "The week with Opus and Sonnet, which have limits of their own",
+        42,
+        week=38,
+        extra={
+            "seven_day_opus": (71, 2 * DAY + 3 * HOUR),
+            "seven_day_sonnet": (24, 2 * DAY + 3 * HOUR),
+        },
+        display={
+            "rows": [
+                {"window": "seven_day", "text": "percent"},
+                {"window": "seven_day_opus", "text": "percent"},
+                {"window": "seven_day_sonnet", "text": "percent"},
+            ]
+        },
+    ),
 }
 
 # `demo`: the default layout filling up, step by step.
