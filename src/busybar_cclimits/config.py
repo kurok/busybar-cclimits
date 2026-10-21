@@ -118,13 +118,15 @@ class BarConfig(_Strict):
         return _fold_secret(dict(data), "token") if isinstance(data, dict) else data
 
 
-# The windows with names of their own. A per-model window - Claude Code has
-# Opus and Sonnet limits - is `seven_day_<model>` or `five_hour_<model>`.
-KNOWN_WINDOWS = ("five_hour", "seven_day", "spend_limit")
+# The windows with names of their own: `extra_usage` is the month's usage
+# credits, from the usage API. A model's own limit - Fable, Opus, Sonnet - is
+# `seven_day_<model>` or `five_hour_<model>`.
+KNOWN_WINDOWS = ("five_hour", "seven_day", "spend_limit", "extra_usage")
 DEFAULT_LABELS = {
     "five_hour": "5H",
     "seven_day": "WK",
     "spend_limit": "$",
+    "extra_usage": "CR",
     "seven_day_opus": "OP",
     "seven_day_sonnet": "SN",
     "seven_day_fable": "FB",
@@ -136,8 +138,8 @@ def _window(value: str) -> str:
     if value in KNOWN_WINDOWS or _PER_MODEL.fullmatch(value):
         return value
     raise ValueError(
-        f"{value!r} is not a limit: five_hour, seven_day, spend_limit, or a model's "
-        "seven_day_<model> such as seven_day_fable"
+        f"{value!r} is not a limit: five_hour, seven_day, spend_limit, extra_usage, or a "
+        "model's seven_day_<model> such as seven_day_fable"
     )
 
 
@@ -212,16 +214,32 @@ class DisplayConfig(_Strict):
         return self
 
 
+class SourceConfig(_Strict):
+    kind: Literal["api", "statusline"] = Field(
+        default="api",
+        description="`api`: ask Anthropic's usage endpoint with Claude Code's own sign-in, "
+        "read and never changed - the 5-hour and weekly windows and any model's own. "
+        "`statusline`: only what Claude Code hands its status line (`hook install`).",
+    )
+    poll_seconds: int = Field(
+        default=120,
+        ge=30,
+        le=3600,
+        description="With `api`, how often to ask; a refused or failed request backs off.",
+    )
+
+
 class FeedConfig(_Strict):
     path: Path = Field(
         default_factory=default_feed,
-        description="Where the status line hook writes the limits.",
+        description="Where the limits are kept, by the usage API poller or the status line hook.",
     )
 
 
 class Config(_Strict):
     bar: BarConfig = Field(default_factory=BarConfig)
     display: DisplayConfig = Field(default_factory=DisplayConfig)
+    source: SourceConfig = Field(default_factory=SourceConfig)
     feed: FeedConfig = Field(default_factory=FeedConfig)
 
 

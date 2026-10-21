@@ -3,13 +3,11 @@
 
 A bar for Claude Code's 5-hour window with a live countdown to its reset,
 and one for the week with the percentage used, in green, then yellow from
-75% and red from 90%. The numbers come from Claude Code's own status line,
-which hands them to its command on every update - so no credentials are
-read and no API is called. Set the status line up once:
-
-    python app.py --hook                    # wrap your status line command (backed up first)
-
-then:
+75% and red from 90%. The numbers come from Anthropic's usage endpoint - the
+one behind Claude Code's /usage - asked every two minutes with the sign-in
+Claude Code already has, which is read and never changed. Or, with
+--source statusline, from what Claude Code hands its status line, after
+`python app.py --hook` wraps your status line command.
 
     python app.py                           # BUSY Bar over USB (10.0.4.20)
     python app.py --host 127.0.0.1:8080     # emulator or a Wi-Fi bar
@@ -17,8 +15,9 @@ then:
     python app.py --demo                    # sample limits filling up, no Claude Code needed
     python app.py --test                    # draw one frame and exit
 
-Without limits from the status line yet, it plays the demo. Secrets come
-from the environment, never the command line or this file:
+Without a Claude Code sign-in (or, with --source statusline, without limits
+from the status line yet) it plays the demo. Secrets come from the
+environment, never the command line or this file:
 
     BUSYBAR_TOKEN   the bar's HTTP API password, if its Wi-Fi API asks for one;
                     with --cloud, a BUSY Cloud token with the "BUSY Bar" scope
@@ -50,7 +49,7 @@ from busybar_cclimits import cli
 if sys.argv[1:2] == ["statusline"]:
     sys.exit(cli.main(sys.argv[1:]))
 
-from busybar_cclimits import connect, limits, render
+from busybar_cclimits import connect, limits, render, usage_api
 from busybar_cclimits.samples import DEMO_STEPS, Sample
 from busybar_cclimits.config import USB_HOST, Config, find, load
 
@@ -63,8 +62,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--cloud", action="store_true", help="reach the bar through BUSY Cloud")
     p.add_argument("--config", help="a TOML file with every setting")
     p.add_argument(
-        "--feed", help="the status line feed (default ~/.cache/busybar-cclimits/limits.json)"
+        "--source",
+        choices=["api", "statusline"],
+        help="where the limits come from (default api: Anthropic's usage endpoint)",
     )
+    p.add_argument("--feed", help="where the limits are kept (~/.cache/busybar-cclimits/...)")
     p.add_argument("--priority", type=int, default=50, help="draw priority (50)")
     p.add_argument("--hook", action="store_true", help="add the status line hook to Claude Code")
     p.add_argument("--demo", action="store_true", help="loop sample limits")
@@ -90,7 +92,22 @@ def build_config(args: argparse.Namespace) -> Config:
         config = Config.model_validate({"bar": bar})
     if args.feed:
         config.feed.path = Path(args.feed).expanduser()
+    if args.source:
+        config.source.kind = args.source
     return config
+
+
+def no_limits(config: Config) -> str | None:
+    """Why there is nothing to show but the demo, or None."""
+    if config.source.kind == "api":
+        try:
+            usage_api.read_token()
+        except usage_api.TokenError as error:
+            return str(error)
+        return None
+    if limits.read(config.feed.path) is None:
+        return f"no limits from the status line yet ({config.feed.path}); `--hook` sets it up"
+    return None
 
 
 async def demo(config: Config, once: bool) -> int:
@@ -128,13 +145,10 @@ def main(argv: list[str] | None = None) -> int:
         config = build_config(args)
         if args.test:
             return asyncio.run(demo(config, once=True))
-        if args.demo or limits.read(config.feed.path) is None:
-            if not args.demo:
-                print(
-                    f"No limits from Claude Code yet ({config.feed.path}): playing a demo. "
-                    "`python app.py --hook` sets the status line up.",
-                    file=sys.stderr,
-                )
+        why = None if args.demo else no_limits(config)
+        if args.demo or why:
+            if why:
+                print(f"{APP}: {why}: playing a demo.", file=sys.stderr)
             return asyncio.run(demo(config, once=False))
         where = config.bar.address or "BUSY Cloud"
         print(f"{APP} -> {where}, feed {config.feed.path}  (Ctrl-C to stop)", file=sys.stderr)

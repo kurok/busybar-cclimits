@@ -131,12 +131,18 @@ def feed_path(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def write_config(tmp_path: Path, emulator: Emulator, feed_path: Path) -> Callable[..., Path]:
-    """Write a config for a bar at the emulator and a feed in the test's directory."""
+    """
+    Write a config for a bar at the emulator and a feed in the test's directory.
+
+    The source is the status line, so the service never looks for a Claude Code
+    sign-in: on a Mac, `security` finds the login Keychain whatever HOME says.
+    """
 
     def write(extra: str = "") -> Path:
         path = tmp_path / "config.toml"
         path.write_text(
-            f'[bar]\naddress = "{emulator.host}"\n\n[feed]\npath = "{feed_path}"\n\n{extra}'
+            f'[bar]\naddress = "{emulator.host}"\n\n[source]\nkind = "statusline"\n\n'
+            f'[feed]\npath = "{feed_path}"\n\n{extra}'
         )
         return path
 

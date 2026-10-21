@@ -205,7 +205,8 @@ def visible(feed: Feed | None, now: float, display: DisplayConfig) -> bool:
         return False
     if display.show == "always":
         return True
-    if feed.seen_at is not None and now - feed.seen_at <= display.idle_minutes * 60:
+    active = feed.active_at()
+    if active is not None and now - active <= display.idle_minutes * 60:
         return True
     windows = feed.at(now)
     return any(

@@ -58,7 +58,7 @@ def test_app_py_test_draws_one_frame_and_exits(emulator: Emulator, start):
 
 
 def test_app_py_without_limits_plays_the_demo(emulator: Emulator, start):
-    run = start(str(REPO / "app.py"), "--host", emulator.host)
+    run = start(str(REPO / "app.py"), "--host", emulator.host, "--source", "statusline")
     wait_for(emulator.mine, f"the demo:\n{run.text()}")
     assert "playing a demo" in run.text()
     assert run.stop(signal.SIGTERM) == 0, run.text()

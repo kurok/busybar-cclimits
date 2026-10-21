@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+### Added
+
+- The limits come from Anthropic's usage endpoint by default (`[source] kind
+  = "api"`): the one behind Claude Code's own `/usage`, asked every two
+  minutes (`poll_seconds`) with the sign-in Claude Code already has - read
+  from the Keychain or `~/.claude/.credentials.json`, never refreshed or
+  written back. Besides the 5-hour and weekly windows it reports a model's
+  own weekly limit, such as `seven_day_fable` for Fable, and the month's
+  usage credits as `extra_usage` (label CR). A rate-limited or failed request
+  backs off; an expired sign-in waits for Claude Code to renew it.
+- `busybar-cclimits usage [--json]` asks the endpoint once and lists what
+  your account reports.
+
+### Changed
+
+- `kind = "statusline"` keeps the status line hook as the source, for those
+  who want no credentials read.
+- `show = "with_claude"` also counts the numbers moving as Claude Code at
+  work, since the usage endpoint never runs the status line.
+- `status` names the source, and no longer fails on a per-model window.
 - The README's screens are captures from a real bar. The previews script pads
   the countdown's hours as the firmware does (`01:42:07`).
 
