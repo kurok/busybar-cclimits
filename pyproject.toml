@@ -1,6 +1,6 @@
 [project]
 name = "busybar-cclimits"
-version = "0.2.0"
+version = "0.3.0"
 description = "Claude Code's usage limits on a BUSY Bar: 5-hour and weekly bars with a countdown to the reset, fed by Claude Code's own status line"
 readme = "README.md"
 license = "MIT"
