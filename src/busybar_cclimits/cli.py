@@ -87,6 +87,8 @@ def describe_feed(
             text += (
                 f"  resets in {limits.duration(window.left(now) or 0)} ({_when(window.resets_at)})"
             )
+        elif feed.windows[name].resets_at is None:  # never had one: usage credits, say
+            text += "  no reset time given"
         else:
             text += "  reset - a new window starts with the next request"
         if window.used_usd is not None and window.limit_usd is not None:

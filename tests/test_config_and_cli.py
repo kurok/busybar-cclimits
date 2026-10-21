@@ -128,3 +128,20 @@ def test_per_model_windows():
             Row(window=bad)
     with pytest.raises(ValidationError):
         Config.model_validate({"display": {"rows": [{"window": "five_hour"}] * 4}})
+
+
+def test_status_tells_a_reset_from_no_reset_time():
+    from busybar_cclimits.limits import Feed, Window
+
+    now = 1_800_000_000.0
+    feed = Feed(
+        {
+            "five_hour": Window(40, int(now) - 1),  # its window has passed
+            "extra_usage": Window(12.5, None),  # usage credits: never a reset time
+        },
+        updated_at=now,
+        seen_at=None,
+    )
+    lines = "\n".join(cli.describe_feed(feed, Path("limits.json"), now))
+    assert "5-hour" in lines and "a new window starts" in lines
+    assert "extra usage" in lines and "no reset time given" in lines
