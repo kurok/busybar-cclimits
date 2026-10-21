@@ -18,7 +18,7 @@ import asyncio
 import contextlib
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
@@ -36,11 +36,17 @@ RETRY_MAX = 300.0  # seconds, the longest wait after the bar failed
 
 class Runner:
     def __init__(
-        self, config: Config, bar: render.Bar, clock: Callable[[], float] = time.time
+        self,
+        config: Config,
+        bar: render.Bar,
+        clock: Callable[[], float] = time.time,
+        poller: Callable[[float], Awaitable[None]] | None = None,
     ) -> None:
         self.config = config
         self.bar = bar
         self.clock = clock
+        # Refreshes the feed file before each look at it: the usage API source.
+        self.poller = poller
         self._stamp: tuple[int, int] | None = None
         self.feed: limits.Feed | None = None
         self._key: str | None = None  # what the bar shows; None when nothing
@@ -93,6 +99,11 @@ class Runner:
         self._ids = ids
 
     async def tick(self, now: float) -> None:
+        if self.poller is not None:
+            try:
+                await self.poller(now)
+            except Exception as error:  # the bar keeps the last numbers
+                logger.warning("usage: %s", error)
         if now < self._retry_at:
             return
         feed = self.read_feed()

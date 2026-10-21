@@ -21,7 +21,11 @@ DAY = 86400
 
 
 def config_for(emulator: Emulator, feed: Path | None = None, **display) -> Config:
-    data: dict = {"bar": {"address": emulator.host}, "display": display}
+    data: dict = {
+        "bar": {"address": emulator.host},
+        "display": display,
+        "source": {"kind": "statusline"},
+    }
     if feed is not None:
         data["feed"] = {"path": str(feed)}
     return Config.model_validate(data)

@@ -36,10 +36,12 @@ critical_at = 90
 refresh_seconds = 60
 
 # One to three rows, top to bottom; three are drawn in the 4-pixel tiny font.
-# `window`: five_hour, seven_day, spend_limit (behind a Claude apps gateway),
-# or a model's own window as seven_day_<model> - seven_day_fable,
-# seven_day_opus, seven_day_sonnet. `label`: up to 2 characters (5H, WK, $,
-# FB, OP, SN by default, else the model's first two letters; "" for none).
+# `window`: five_hour, seven_day, extra_usage (the month's usage credits,
+# from the usage API), spend_limit (behind a Claude apps gateway), or a
+# model's own limit as seven_day_<model> - seven_day_fable, seven_day_opus,
+# seven_day_sonnet; `busybar-cclimits usage` lists what your account reports.
+# `label`: up to 2 characters (5H, WK, CR, $, FB, OP, SN by default, else the
+# model's first two letters; "" for none).
 # `text` beside the bar: "time" to the reset (a live countdown once under 10
 # hours, 21h or 3d4h further out), "percent", or "none" for a longer bar.
 [[display.rows]]
@@ -60,7 +62,17 @@ critical = "#FF2A00FF"
 text = "#FFFFFFFF"
 idle = "#5A5A5AFF"
 
+[source]
+# "api": ask Anthropic's usage endpoint - the one behind Claude Code's /usage -
+# with Claude Code's own sign-in (read from the Keychain or
+# ~/.claude/.credentials.json, never changed). It reports the 5-hour and weekly
+# windows and the per-model ones. "statusline": only what Claude Code hands its
+# status line, after `busybar-cclimits hook install`.
+kind = "api"
+# With "api", how often to ask. A refused or failed request backs off.
+poll_seconds = 120
+
 [feed]
-# Where the status line hook writes the limits; the hook uses
-# $BUSYBAR_CCLIMITS_FEED or this same default, so change both together.
+# Where the limits are kept. The status line hook uses $BUSYBAR_CCLIMITS_FEED
+# or this same default, so change both together.
 # path = "~/.cache/busybar-cclimits/limits.json"

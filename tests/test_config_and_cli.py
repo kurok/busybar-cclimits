@@ -89,7 +89,7 @@ def test_status_without_anything(tmp_path, monkeypatch, capsys):
     monkeypatch.delenv("BUSYBAR_CCLIMITS_FEED", raising=False)
     assert cli.status_report(None, as_json=False) == 0
     out = capsys.readouterr().out
-    assert "hook install" in out and "init" in out
+    assert "`usage` asks once" in out and "init" in out and "usage endpoint" in out
 
 
 def test_app_defaults_to_usb(tmp_path, monkeypatch):

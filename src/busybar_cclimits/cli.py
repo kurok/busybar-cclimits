@@ -26,8 +26,8 @@ FIRST_STEPS = f"""\
 {PROG} shows Claude Code's usage limits on a BUSY Bar: a bar for the 5-hour
 window with a countdown to its reset, and one for the week.
 
-  {PROG} hook install    let Claude Code's status line hand over the limits
   {PROG} init --cloud    write the config (or --host 10.0.4.20 for USB)
+  {PROG} usage           check that Anthropic answers with your limits
   {PROG} test            draw a sample on the bar
   {PROG} install         run in the background from now on
 
@@ -56,25 +56,33 @@ def _ago(then: float | None, now: float) -> str:
 NAMES = {"five_hour": "5-hour", "seven_day": "weekly", "spend_limit": "spend"}
 
 
+def _name(window: str) -> str:
+    return NAMES.get(window) or window.replace("seven_day_", "weekly ").replace("_", " ")
+
+
 def _when(at: int) -> str:
     return time.strftime("%a %H:%M", time.localtime(at))
 
 
-def describe_feed(feed: limits.Feed | None, path: Path, now: float) -> list[str]:
+def describe_feed(
+    feed: limits.Feed | None, path: Path, now: float, source: str = "api"
+) -> list[str]:
     if feed is None:
-        return [f"Feed:    none yet at {path} - run `{PROG} hook install`, then use Claude Code"]
-    lines = [
-        f"Feed:    {path}",
-        f"         limits updated {_ago(feed.updated_at, now)}, "
-        f"status line last ran {_ago(feed.seen_at, now)}",
-    ]
+        how = (
+            "the service writes it as it asks for the limits; `usage` asks once"
+            if source == "api"
+            else f"run `{PROG} hook install`, then use Claude Code"
+        )
+        return [f"Feed:    none yet at {path} - {how}"]
+    seen = f", status line last ran {_ago(feed.seen_at, now)}" if feed.seen_at else ""
+    lines = [f"Feed:    {path}", f"         limits updated {_ago(feed.updated_at, now)}{seen}"]
     if not feed.windows:
         lines.append(
             "         Claude Code sends no rate limits: they come for claude.ai subscriptions "
             "(and gateway spend limits), after a session's first response"
         )
     for name, window in feed.at(now).items():
-        text = f"         {NAMES[name]:<7} {window.used:5.1f}%"
+        text = f"         {_name(name):<13} {window.used:5.1f}%"
         if window.resets_at is not None:
             text += (
                 f"  resets in {limits.duration(window.left(now) or 0)} ({_when(window.resets_at)})"
@@ -100,6 +108,7 @@ def status_report(config_path: Path | None, as_json: bool) -> int:
         except Exception as error:
             problems = describe(error)
     feed_path = config.feed.path if config is not None else limits.default_feed()
+    source = config.source if config is not None else config_module.SourceConfig()
     feed = limits.read(feed_path)
     hooked, command = hook.installed()
     state = service.status()
@@ -107,6 +116,7 @@ def status_report(config_path: Path | None, as_json: bool) -> int:
         report: dict[str, Any] = {
             "config": str(config_path) if config_path else None,
             "config_problems": problems,
+            "source": source.kind,
             "feed": str(feed_path),
             "updated_at": feed.updated_at if feed else None,
             "seen_at": feed.seen_at if feed else None,
@@ -123,15 +133,16 @@ def status_report(config_path: Path | None, as_json: bool) -> int:
         }
         print(json.dumps(report, indent=2))
         return 0
-    lines = describe_feed(feed, feed_path, now)
+    lines = describe_feed(feed, feed_path, now, source.kind)
+    if source.kind == "api":
+        lines.append(
+            f"Source:  Anthropic's usage endpoint every {source.poll_seconds}s, "
+            "with Claude Code's sign-in"
+        )
     settings = hook.settings_path()
     if hooked:
         lines.append(f"Hook:    in {settings}")
-    elif command:
-        lines.append(
-            f"Hook:    not installed; the status line is your own - `{PROG} hook install` wraps it"
-        )
-    else:
+    elif source.kind == "statusline":
         lines.append(f"Hook:    not installed - `{PROG} hook install`")
     if config_path is None:
         lines.append(f"Config:  none - `{PROG} init --cloud` or `{PROG} init --host ADDRESS`")
@@ -217,22 +228,57 @@ def cmd_hook(args: argparse.Namespace, program: list[str] | None = None) -> int:
     return 0
 
 
+async def cmd_usage(as_json: bool) -> int:
+    """Ask the usage endpoint once and show what it answers."""
+    from . import usage_api
+
+    token = usage_api.read_token()
+    now = time.time()
+    if token.expired(now):
+        print("The Claude Code sign-in has expired; run `claude` once to renew it.")
+        return 1
+    data = await usage_api.fetch(token)
+    if as_json:
+        print(json.dumps(data, indent=2, sort_keys=True))
+        return 0
+    found = usage_api.to_rate_limits(data)
+    if not found:
+        print("The answer holds no limits this understands; `usage --json` shows it.")
+        return 1
+    for name, raw in found.items():
+        resets = raw["resets_at"]
+        when = (
+            f"resets in {limits.duration(max(0, resets - now))} ({_when(resets)})"
+            if resets
+            else "no reset time (not started, or monthly)"
+        )
+        print(f"{name:<22} {raw['used_percentage']:5.1f}%  {when}")
+    print("\nA [[display.rows]] window can be any of these names.")
+    return 0
+
+
 async def cmd_run(config: Any) -> int:
     from . import connect
     from .runner import Runner
 
+    poller = None
+    if config.source.kind == "api":
+        from . import usage_api
+
+        poller = usage_api.Poller(config.feed.path, config.source.poll_seconds)
     bar = connect.make_bar(config)
     stop = connect.stop_on_signals()
     # `status` reads this line to tell which version the service runs.
     logger.info(
-        "%s %s started: feed %s, bar %s",
+        "%s %s started: %s, feed %s, bar %s",
         PROG,
         __version__,
+        "usage API" if poller else "status line",
         config.feed.path,
         config.bar.address or "via BUSY Cloud",
     )
     try:
-        await Runner(config, bar).run(stop)
+        await Runner(config, bar, poller=poller).run(stop)
     finally:
         await bar.aclose()
     return 0
@@ -372,6 +418,11 @@ def _parser() -> argparse.ArgumentParser:
     )
     init.add_argument("--force", action="store_true", help="replace an existing config")
 
+    usage = commands.add_parser(
+        "usage", help="ask Anthropic's usage endpoint once, with Claude Code's sign-in"
+    )
+    usage.add_argument("--json", action="store_true", help="the answer as it came")
+
     status = commands.add_parser("status", help="the limits, the hook and the service")
     status.add_argument("--json", action="store_true")
 
@@ -452,6 +503,8 @@ def main(argv: list[str] | None = None, program: list[str] | None = None) -> int
                 print(FIRST_STEPS)
                 return 0
             return status_report(path, as_json=False)
+        if args.command == "usage":
+            return asyncio.run(cmd_usage(args.json))
         if args.command == "status":
             return status_report(config_module.find(args.config), args.json)
         if args.command == "hook":

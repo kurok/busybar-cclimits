@@ -13,35 +13,59 @@ until Claude Code starts a new one.
 
 ## Where the numbers come from
 
-Claude Code hands its [status line](https://code.claude.com/docs/en/statusline)
-command a JSON object on every update, and for claude.ai subscriptions that
-object carries `rate_limits`: the 5-hour and 7-day windows, each with the
-percentage used and the reset time (and behind a Claude apps gateway, your
-spend limit). `busybar-cclimits statusline` stores those numbers in
-`~/.cache/busybar-cclimits/limits.json` and then runs the status line command
-you already had, so your status line looks the same. The service watches the
-file and draws.
+By default (`[source] kind = "api"`) the service asks Anthropic's usage
+endpoint every two minutes: the one behind Claude Code's own `/usage`,
+called with the sign-in Claude Code already has. It reports
 
-So nothing reads your Claude credentials and nothing calls an Anthropic API:
-the numbers are the ones Claude Code itself shows. Two consequences:
+- `five_hour` and `seven_day`: the 5-hour and weekly windows;
+- a model's own weekly limit, such as `seven_day_fable` for Fable (and
+  `seven_day_opus`, `seven_day_sonnet` where a plan has them);
+- `extra_usage`: the month's usage credits, as a share of their limit.
 
-- They are as fresh as Claude Code's last response. Use on claude.ai or the
-  desktop app counts towards the same limits, but shows here only after your
-  next Claude Code request.
-- They arrive after a session's first response. Claude Code documents them
-  for Pro and Max subscribers; `busybar-cclimits status` tells you whether
-  your plan sends them.
+`busybar-cclimits usage` asks once and lists what your account reports; any
+of those names can be a row.
+
+The sign-in is read from the macOS Keychain item "Claude Code-credentials"
+(or `~/.claude/.credentials.json`) and never changed: when its access token
+expires, the service waits until Claude Code renews it rather than refreshing
+it itself, which would sign Claude Code out. The token goes only into that
+request's Authorization header. The endpoint is not documented, so a Claude
+Code release could change it; `usage --json` shows the answer as it comes.
+
+The other source, `kind = "statusline"`, reads no credentials and calls
+nothing: Claude Code hands its
+[status line](https://code.claude.com/docs/en/statusline) command the 5-hour
+and weekly windows (for Pro and Max, after a session's first response), and
+`busybar-cclimits hook install` wraps your status line command so that
+`busybar-cclimits statusline` stores them before running yours. It has no
+per-model limits and no usage credits, and is only as fresh as Claude Code's
+last response.
 
 ## Set up
 
 ```sh
 uv tool install git+https://github.com/kurok/busybar-cclimits
 
-busybar-cclimits hook install      # wraps the status line in ~/.claude/settings.json (backed up)
 busybar-cclimits init --cloud --keychain busybar    # or: init --host 10.0.4.20 (USB) / the bar's LAN IP
+busybar-cclimits usage             # what Anthropic reports for your account
 busybar-cclimits test              # sample limits on the bar for 20 seconds
 busybar-cclimits install --auto-update              # run in the background from now on
-busybar-cclimits status            # the limits, the hook and the service
+busybar-cclimits status            # the limits, the source and the service
+```
+
+To add Fable as a third row, put this in `~/.config/busybar-cclimits/config.toml`:
+
+```toml
+[[display.rows]]
+window = "five_hour"
+
+[[display.rows]]
+window = "seven_day"
+text = "percent"
+
+[[display.rows]]
+window = "seven_day_fable"
+text = "percent"
 ```
 
 `--cloud` reaches the bar through BUSY Cloud with a token that has the
@@ -71,8 +95,9 @@ Every element carries `display_until`, so if the service stops the bar
 takes the drawing down by itself within three minutes.
 
 To have the bar show the limits only while you work with Claude Code, set
-`show = "with_claude"`: the limits stay up while Claude Code has updated them
-in the last 15 minutes, or while a window is at 80% or more.
+`show = "with_claude"`: the limits stay up while the numbers have moved in
+the last 15 minutes (or, with the status line source, while it has run), or
+while a window is at 80% or more.
 
 ## Screens
 
@@ -96,9 +121,10 @@ seconds of a ticking countdown, and `preview.gif` comes from it.
 ## Configuration
 
 Every setting has a default; [config.example.toml](config.example.toml)
-lists them all. Among them: which windows the rows show - up to three, of
-`five_hour`, `seven_day`, `spend_limit` and per-model windows such as
-`seven_day_fable` - what is printed beside each bar
+lists them all. Among them: where the limits come from (`[source]`), which
+windows the rows show - up to three, of `five_hour`, `seven_day`,
+`extra_usage`, `spend_limit` and per-model windows such as `seven_day_fable`
+- what is printed beside each bar
 (`time`, `percent` or `none`), the thresholds and every colour.
 
 ## Commands
@@ -106,10 +132,11 @@ lists them all. Among them: which windows the rows show - up to three, of
 | Command | |
 | --- | --- |
 | `busybar-cclimits` | where you stand, or the first steps |
-| `statusline [--then CMD]` | the status line command: store the limits, then run `CMD` or print `5h 42% (1h17) · week 18% (3d4h)` |
-| `hook install` / `hook uninstall` | put it in Claude Code's settings, or take it out and restore your own (`--dry-run` shows the change) |
+| `usage [--json]` | ask Anthropic's usage endpoint once and list the limits your account reports |
 | `init --cloud` / `init --host ADDR` | write the config |
-| `status [--json]` | the limits, the hook and the service |
+| `status [--json]` | the limits, the source and the service |
+| `statusline [--then CMD]` | for `kind = "statusline"`: the status line command, which stores the limits, then runs `CMD` or prints `5h 42% (1h17) · week 18% (3d4h)` |
+| `hook install` / `hook uninstall` | for `kind = "statusline"`: put it in Claude Code's settings, or take it out and restore your own (`--dry-run` shows the change) |
 | `test`, `demo` | sample limits on the bar |
 | `snapshot [SAMPLE...]` | draw sample states and save what the bar shows, as 72x16 PNGs |
 | `run [--auto-update]` | the service, in the foreground |
