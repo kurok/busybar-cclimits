@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-21
+
 ### Added
 
 - The limits come from Anthropic's usage endpoint by default (`[source] kind
@@ -21,7 +23,8 @@
   who want no credentials read.
 - `show = "with_claude"` also counts the numbers moving as Claude Code at
   work, since the usage endpoint never runs the status line.
-- `status` names the source, and no longer fails on a per-model window.
+- `status` names the source, no longer fails on a per-model window, and
+  tells a window whose reset has passed from one with no reset time.
 - The README's screens are captures from a real bar. The previews script pads
   the countdown's hours as the firmware does (`01:42:07`).
 
@@ -68,6 +71,7 @@ First release.
 - `init`, `status`, `test`, `demo`, `run`, `install` (launchd / systemd,
   `--auto-update`), `restart`, `uninstall`; `app.py` for the gallery.
 
-[Unreleased]: https://github.com/kurok/busybar-cclimits/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/kurok/busybar-cclimits/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/kurok/busybar-cclimits/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/kurok/busybar-cclimits/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/kurok/busybar-cclimits/releases/tag/v0.1.0
